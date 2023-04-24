@@ -52,13 +52,13 @@ from sys import argv
 input_value = int(argv[1])
 
 # Load a trained model
-model = keras.models.load_model(r'/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/temporalCNN/Archi1/TemporalCNN_100epochs_baseline_latlongencoding_jan242023.h5')
+model = keras.models.load_model(r'/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/temporalCNN/Archi4/TemporalCNN_100epochs_latlongenc_spatialthin001dd_classweightfreq_uncertainty_topmodel_apr132023.h5')
 
 # Input prediction .tif path
-image_path = r'/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/landsat_tifs_timeseries_tile125/'
+image_path = r'/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/landsat_tifs_tile125_yampa/'
 
 # Output prediction file path
-outpath = r'/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/datasets_oct22/raster_predictions_tile125_timeseries'
+outpath = r'/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/model_predictions/landsat_tifs_tile125_yampa_predictions/'
 
 # List all .tif files in /rasters folder for prediction
 tif_image_list = glob.glob(image_path + '*.tif')
@@ -129,7 +129,7 @@ with rio.open(tif_image_list[input_value], 'r') as dataset:
                      'nodata':0})
 
     # Write predicted raster to file.
-    with rio.open(fp=outpath + "/prediction_" + fileout_string[-1], #outputpath_name
+    with rio.open(fp=outpath + "/argmax_prediction_" + fileout_string[-1], #outputpath_name
                  mode='w',**out_meta) as dst:
                  dst.write(pim3, 1) # the numer one is the number of bands
 

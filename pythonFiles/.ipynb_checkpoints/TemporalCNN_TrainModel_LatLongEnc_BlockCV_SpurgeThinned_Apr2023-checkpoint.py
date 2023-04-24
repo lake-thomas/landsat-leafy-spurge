@@ -100,7 +100,7 @@ print("test_file: ", test_file)
 res_path = '/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/temporalCNN'
 
 # Set Architecture / Model Run Index (used if running in batch on MSI)
-noarchi = 5
+noarchi = 7
 norun = run_number
 feature = "SB" #use only spectral bands provided (do not compute new bands, like NDVI, which are already computed)
 train_str = "latlong-spurgespatialthin001-blockcrossvalidation"
@@ -280,16 +280,15 @@ nbunits_fc = 128 #-- fully connected (dense) layer, will be double
 	# Define the input placeholders.
 X_input = Input(input_shape) # (batch size, timesteps, channels)
     #-- Conv BN Activation Dropout
-#Note: adding training = True to dropout layer uses dropout during training and inference (for uncertainty est., as in: inference-time dropout)
-X = Conv1D(nbunits_conv, 5, strides = 1, padding="same", kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(X_input)
+X = Conv1D(filters = 64, kernel_size = 5, strides = 1, dilation_rate=1, padding="same", kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(X_input)
 X = BatchNormalization(axis=-1)(X)
 X = Activation('relu')(X)
 X = Dropout(dropout_rate)(X) 
-X = Conv1D(nbunits_conv, 5, strides = 1, padding="same", kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(X)
+X = Conv1D(filters = 64, kernel_size = 5, strides = 1, dilation_rate=2, padding="same", kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(X)
 X = BatchNormalization(axis=-1)(X)
 X = Activation('relu')(X)
 X = Dropout(dropout_rate)(X)
-X = Conv1D(nbunits_conv, 5, strides = 1, padding="same", kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(X)
+X = Conv1D(filters = 128, kernel_size = 5, strides = 1, dilation_rate=4, padding="same", kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(X)
 X = BatchNormalization(axis=-1)(X)
 X = Activation('relu')(X)
 X = Dropout(dropout_rate)(X)
@@ -304,13 +303,12 @@ concatenated = Concatenate(axis=-1)([model1_out, model2_out])
 Z = Dense(nbunits_fc, kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(concatenated)
 Z = BatchNormalization(axis=-1)(Z)
 Z = Activation('relu')(Z)
-Z = Dropout(dropout_rate)(Z, training = True)
+Z = Dropout(dropout_rate)(Z, training=True) #adding training = True to dropout allows us to use dropout during training and inference (for uncertainty)
 	#-- SOFTMAX layer
 out = Dense(nbclasses, activation='softmax', kernel_initializer="he_normal",kernel_regularizer=l2(l2_rate))(Z)
 
 # Create merged model.
 merged_model = Model(inputs = [X_coords_input, X_input], outputs = out)
-
 
 
 
@@ -341,7 +339,7 @@ class_weights = {0: 0,
                  6: 0.3652990948014909,
                  7: 0.39487324200412083,
                  8: 4.334510403657227,
-                 9: 15}
+                 9: 26}
 
 print(class_weights)
 
@@ -653,8 +651,8 @@ for i in range(len(class_labels)):
 print(tabulate(model_output_metrics, floatfmt=".2f", headers=["Class Name", "Num Points", "TP", "TN", "FP", "FN", "Accuracy", "TPR/Sens/Recall", "TNR/Spec", "FPR", "FNR", "Precision", "Jaccard", "F2"]))
 
 #Save model results to file
-#with open(res_file, 'w') as f:
-#    f.write(tabulate(model_output_metrics, floatfmt=".2f", headers=["Class Name", "TP", "TN", "FP", "FN", "Accuracy", "TPR/Sens/Recall", "TNR/Spec", "FPR", "FNR", "Precision", "Jaccard", "F1"]))
+with open(res_file, 'w') as f:
+    f.write(tabulate(model_output_metrics, floatfmt=".2f", headers=["Class Name", "TP", "TN", "FP", "FN", "Accuracy", "TPR/Sens/Recall", "TNR/Spec", "FPR", "FNR", "Precision", "Jaccard", "F1"]))
     
 
 # Save losses and accuracy

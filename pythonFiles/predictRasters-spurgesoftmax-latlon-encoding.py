@@ -52,13 +52,13 @@ from sys import argv
 input_value = int(argv[1])
 
 # Load a trained model
-model = keras.models.load_model(r'/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/temporalCNN/Archi3/model-SB-latlong-noarchi3-norun-4.h5')
+model = keras.models.load_model(r'/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/temporalCNN/Archi3/TemporalCNN_100epochs__latlongenc_dropout_uncertainty_apr42023.h5')
 
 # Input prediction .tif path
-image_path = r'/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/landsat_tifs_timeseries_tile249/'
+image_path = r'/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/landsat_tifs_2019/'
 
 # Output prediction file path
-outpath = r'/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/landsat_tifs_timeseries_tile249_fivemodels/model4_spurge_softmax_predictions'
+outpath = r'/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/model_predictions/predictions_2019/iteration_4/'
 
 # List all .tif files in /rasters folder for prediction
 tif_image_list = glob.glob(image_path + '*.tif')
@@ -131,4 +131,6 @@ with rio.open(tif_image_list[input_value], 'r') as dataset:
     print("Writing file... \n")
     prediction_time = round(time.time()-prediction_train_time, 2)
     print(prediction_time)
+    
+
 #EOF

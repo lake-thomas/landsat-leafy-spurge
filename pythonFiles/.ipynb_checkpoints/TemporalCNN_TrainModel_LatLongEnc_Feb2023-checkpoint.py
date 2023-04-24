@@ -54,12 +54,12 @@ from keras import backend as K
 
 # Import from ~/sits folder
 # Contains readingsits.py file to read and compute and reshape the SITS data
-sys.path.append("/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/temporalCNN/sits")
+sys.path.append("/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/temporalCNN/sits")
 import readingsits
 
 # Import from ~/deeplearning folder
 # Contains multiple .py files with varying DL architectures 
-sys.path.append("/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/temporalCNN/deeplearning")
+sys.path.append("/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/temporalCNN/deeplearning")
 
 import architecture_features
 import architecture_complexity
@@ -72,13 +72,13 @@ import architecture_pooling
 
 # Import from ~/outputfiles folder
 # Contains evaluation.py and save.py files with fucntions to compute summary statistics, write predictions, and create confusion matrices
-sys.path.append("/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/temporalCNN/outputfiles")
+sys.path.append("/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/temporalCNN/outputfiles")
 
 import evaluation
 import save
 
 # Set the path to exported training/testing dataset
-sits_path = '/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/datasets_oct22'    
+sits_path = '/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/datasets_oct22'    
     
     
 #-----------------------------------------------------------------------
@@ -87,8 +87,8 @@ n_channels = 7 #-- B G NDVI NIR Red SWIR1 SWIR2
 val_rate = 0.1 # Validation data rate
 
 # String variables for the training and testing datasets
-train_str = 'train_dataset_allyears_full_oct22'
-test_str = 'test_dataset_allyears_full_oct22'					
+train_str = 'NLCD_train_dataset_allyears_latlong_thinned_001dd_spurge_apr2023'
+test_str = 'NLCD_test_dataset_allyears_latlong_thinned_001dd_spurge_apr2023'					
 
 # Get filenames
 train_file = sits_path + '/' + train_str + '.csv'
@@ -97,13 +97,13 @@ print("train_file: ", train_file)
 print("test_file: ", test_file)
 
 # Set a model results path
-res_path = '/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/temporalCNN'
+res_path = '/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/temporalCNN'
 
 # Set Architecture / Model Run Index (used if running in batch on MSI)
-noarchi = 3
+noarchi = 5
 norun = run_number
 feature = "SB" #use only spectral bands provided (do not compute new bands, like NDVI, which are already computed)
-train_str = "latlong"
+train_str = "latlong-spurgespatialthin001-blockcrossvalidation"
 
 # Creating output path if does not exist
 if not os.path.exists(res_path):
@@ -147,7 +147,7 @@ print("Model output file: " + out_model_file)
 from tensorflow.keras.utils import to_categorical
 
 # Read training set dataframe
-train_df = pd.DataFrame(pd.read_csv("/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/datasets_oct22/NLCD_train_dataset_allyears_latlong_jan2023.csv"))
+train_df = pd.DataFrame(pd.read_csv("/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/datasets_oct22/NLCD_train_dataset_allyears_latlong_thinned_001dd_spurge_apr2023.csv", header=1))
 #train_df.head()
 #print(train_df.shape)
 nchannels = 7 #-- B G NDVI NIR Red SWIR1 SWIR2
@@ -180,7 +180,7 @@ print(X_train[0].shape, X_train[1].shape, y_train_one_hot.shape)
 
 
 # Read testing set dataframe
-test_df = pd.DataFrame(pd.read_csv("/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/datasets_oct22/NLCD_test_dataset_allyears_latlong_jan2023.csv"))
+test_df = pd.DataFrame(pd.read_csv("/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/datasets_oct22/NLCD_test_dataset_allyears_latlong_thinned_001dd_spurge_apr2023.csv", header=1))
 #test_df.head()
 #print(test_df.shape)
 nchannels = 7 #-- B G NDVI NIR Red SWIR1 SWIR2
@@ -213,7 +213,7 @@ print(X_test[0].shape, X_test[1].shape, y_test_one_hot.shape)
 
 
 # Read validation set dataframe
-valid_df = pd.DataFrame(pd.read_csv("/panfs/roc/groups/7/moeller/shared/leafy-spurge-demography/datasets_oct22/NLCD_valid_dataset_allyears_latlong_jan2023.csv"))
+valid_df = pd.DataFrame(pd.read_csv("/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/datasets_oct22/NLCD_valid_dataset_allyears_latlong_thinned_001dd_spurge_apr2023.csv", header=1))
 #valid_df.head()
 #print(valid_df.shape)
 nchannels = 7 #-- B G NDVI NIR Red SWIR1 SWIR2
@@ -280,10 +280,11 @@ nbunits_fc = 128 #-- fully connected (dense) layer, will be double
 	# Define the input placeholders.
 X_input = Input(input_shape) # (batch size, timesteps, channels)
     #-- Conv BN Activation Dropout
+#Note: adding training = True to dropout layer uses dropout during training and inference (for uncertainty est., as in: inference-time dropout)
 X = Conv1D(nbunits_conv, 5, strides = 1, padding="same", kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(X_input)
 X = BatchNormalization(axis=-1)(X)
 X = Activation('relu')(X)
-X = Dropout(dropout_rate)(X)
+X = Dropout(dropout_rate)(X) 
 X = Conv1D(nbunits_conv, 5, strides = 1, padding="same", kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(X)
 X = BatchNormalization(axis=-1)(X)
 X = Activation('relu')(X)
@@ -303,7 +304,7 @@ concatenated = Concatenate(axis=-1)([model1_out, model2_out])
 Z = Dense(nbunits_fc, kernel_initializer="he_normal", kernel_regularizer=l2(l2_rate))(concatenated)
 Z = BatchNormalization(axis=-1)(Z)
 Z = Activation('relu')(Z)
-Z = Dropout(dropout_rate)(Z)
+Z = Dropout(dropout_rate)(Z, training = True)
 	#-- SOFTMAX layer
 out = Dense(nbclasses, activation='softmax', kernel_initializer="he_normal",kernel_regularizer=l2(l2_rate))(Z)
 
@@ -340,7 +341,7 @@ class_weights = {0: 0,
                  6: 0.3652990948014909,
                  7: 0.39487324200412083,
                  8: 4.334510403657227,
-                 9: 13}
+                 9: 15}
 
 print(class_weights)
 
@@ -619,6 +620,8 @@ y_pred_flat = y_pred_flat.astype(int)
 y_test = y_test.astype(int)    
 y_test_flat = y_test.flatten()
 
+#Count number of classes in the testing dataset
+unique_vals, counts = np.unique(y_test, return_counts=True)
 
 # Calculate confusion matrix
 class_names = ["Water", "Developed", "BarrenLand", "Forest", "Shrub/Scrub", "Grassland/Herbaceous", "Croplands", "EmergentWetlands", "LeafySpurge"]
@@ -643,11 +646,11 @@ for i in range(len(class_labels)):
     F1 = ((1 + beta**2) * precision * TPR_Sens_Recall) / (beta**2 * precision + TPR_Sens_Recall)
     beta = 2
     F2 = ((1 + beta**2) * precision * TPR_Sens_Recall) / (beta**2 * precision + TPR_Sens_Recall)
-    outputs = [class_names[i], tp, tn, fp, fn, accuracy, TPR_Sens_Recall, TNR_Spec, FPR, FNR, precision, jaccard, F1]
+    outputs = [class_names[i], counts[i], tp, tn, fp, fn, accuracy, TPR_Sens_Recall, TNR_Spec, FPR, FNR, precision, jaccard, F2]
     model_output_metrics.append(outputs)
 
 # Print and format outputs
-print(tabulate(model_output_metrics, floatfmt=".2f", headers=["Class Name", "TP", "TN", "FP", "FN", "Accuracy", "TPR/Sens/Recall", "TNR/Spec", "FPR", "FNR", "Precision", "Jaccard", "F1"]))
+print(tabulate(model_output_metrics, floatfmt=".2f", headers=["Class Name", "Num Points", "TP", "TN", "FP", "FN", "Accuracy", "TPR/Sens/Recall", "TNR/Spec", "FPR", "FNR", "Precision", "Jaccard", "F2"]))
 
 #Save model results to file
 #with open(res_file, 'w') as f:
