@@ -1,0 +1,198 @@
+---
+title: "Leafy Spurge Detection with Deep Learning and Landsat Data"
+author: "Thomas Lake"
+date: "10/4/2022"
+output: 
+  html_document:
+    code_folding: "hide"
+    theme: united
+    highlight: tango
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#R Version 3.5.1
+
+library(sp)
+library(maps)
+library(ggplot2)
+library(plotly)
+library(raster)
+library(dismo)
+
+
+```
+
+## Introduction {.tabset .tabset-fade}
+
+Invasive species pose a global threat to agriculture and biodiversity. In order to manage and prevent invasions, we need new tools to dynamically monitor distributions and forecast range expansion. Invasions have become more complex to manage because climate change is rapidly causing shifts in species' distributions. We are using novel approaches to detect invasive species from satellite images using artificial intelligence. We are applying similar techniques to track the population dynamics of invasive species and construct more accurate predictive models of their distributions in future climates.
+
+
+***
+
+## Landsat Satellite Data Exploration {.tabset .tabset-fade .tabset-pills}
+
+Project Goal: Train a model that uses Landsat satellite spectral data to predict the occurrence of invasive plant leafy spurge across the invasive range in the United States.
+
+We generated data for our model using two primary sources:
+
+1. Landsat satellite data from Google Earth Engine (https://developers.google.com/earth-engine/datasets/catalog/landsat-8)
+2. Ground truth data from the National Land Cover Database (NLCD: https://www.mrlc.gov/data/nlcd-2019-land-cover-conus)
+
+***
+
+
+### Tab 1: Import Landsat Spectral Data and LC Coordinates
+
+```{r readData, echo=FALSE}
+
+
+# create a SpatialPointsDataFrame object from your dataset
+coords <- read.csv("c:/users/thomas/desktop/Leafy Spurge RS Demography/CSV_Datasets/NLCD_full_dataset_allyears_latlong_thinned_001dd_spurge_apr2023.csv") # assuming your file contains columns "latitude" and "longitude"
+
+
+# Rename columns
+column_names <- c("index", "band1", "band2", "band3", "band4", "band5", "band6", "band7",
+                  "band8", "band9", "band10", "band11", "band12", "band13", "band14",
+                  "band15", "band16", "band17", "band18", "band19", "band20", "band21",
+                  "band22", "band23", "band24", "band25", "band26", "band27", "band28",
+                  "band29", "band30", "band31", "band32", "band33", "band34", "band35",
+                  "band36", "band37", "band38", "band39", "band40", "band41", "band42",
+                  "band43", "band44", "band45", "band46", "band47", "band48", "band49",
+                  "band50", "band51", "band52", "band53", "band54", "band55", "band56",
+                  "band57", "band58", "band59", "band60", "band61", "band62", "band63",
+                  "latitude", "longitude", "class")
+
+
+# Rename columns
+colnames(coords) <- column_names
+
+coordinates(coords) <- c("longitude", "latitude")
+proj4string(coords) <- CRS("+proj=longlat +datum=WGS84")
+
+# Dimensions: 618289 rows and 65 columns
+dim(coords)
+
+
+```
+
+Data are the dimensions: 618289 rows and 65 columns
+
+
+```{r CreateGrids, echo=FALSE}
+
+
+# create a regular grid of polygons covering the entire study area
+xmin <- min(coords@coords[, 1])
+xmax <- max(coords@coords[, 1])
+ymin <- min(coords@coords[, 2])
+ymax <- max(coords@coords[, 2])
+cellsize <- 1 # set the size of each grid cell
+cells <- GridTopology(c(xmin, ymin), c(cellsize, cellsize), c(ceiling((xmax-xmin)/cellsize), ceiling((ymax-ymin)/cellsize)))
+polys <- as(cells, "SpatialPolygons")
+proj4string(polys) <- CRS("+proj=longlat +datum=WGS84")
+
+plot(polys)
+
+```
+
+Subset data by regular 1 degree latitude/longitude graticule polygons
+
+```{r Training, Testing, Validation Polygons, echo=FALSE}
+
+# randomly assign each polygon to one of the three sets (training, testing, validation)
+n_polys <- length(polys)
+set.seed(123) # for reproducibility
+
+# assign each polygon to one of the three sets (training, testing, validation)
+poly_set <- rep(NA, n_polys)
+poly_set[sample(1:n_polys, round(0.8*n_polys), replace=FALSE)] <- 1
+poly_set[sample(which(is.na(poly_set)), round(0.1*n_polys), replace=FALSE)] <- 2
+poly_set[which(is.na(poly_set))] <- 3
+
+#From all polygons, only get polygons assigned to value = 1 (training set)
+
+train_polys <- polys[poly_set == 1,]
+test_polys <- polys[poly_set == 2,]
+val_polys <- polys[poly_set == 3,]
+
+
+```
+
+Select either the training, testing, and validaiton polygons. Then, select only points inside each polygon.
+
+Dark blue points: training samples (4,644,299 points)
+
+Light blue points: testing samples (597222 points)
+
+Orange points: validation samples (703445 points)
+
+```{r Cross-Validation, echo=FALSE}
+
+# assign each point to a polygon, left join
+# remove NA polygons which have no points
+pts_in_train_polys <- which(!is.na(over(coords, train_polys)))
+pts_in_test_polys <- which(!is.na(over(coords, test_polys)))
+pts_in_val_polys <- which(!is.na(over(coords, val_polys)))
+
+
+# extract the points belonging to each set
+train_pts <- as.data.frame(coords[pts_in_train_polys,])
+test_pts <- as.data.frame(coords[pts_in_test_polys,])
+val_pts <- as.data.frame(coords[pts_in_val_polys,])
+
+
+
+#
+# Plotting
+#
+
+# Load map of the USA
+map_data <- map_data("state")
+
+# Subset data for plotting
+train_pts_plot <- as.data.frame(train_pts[sample(nrow(train_pts), 50000), ])
+test_pts_plot <- as.data.frame(test_pts[sample(nrow(test_pts), 5000), ])
+val_pts_plot <- as.data.frame(val_pts[sample(nrow(val_pts), 5000), ])
+
+
+# Plot map of the USA
+#ggplot() + 
+#  geom_polygon(data = map_data, aes(x = long, y = lat, group = group), 
+#               fill = "white", color = "black") +
+#  coord_quickmap()
+
+
+# Add training, testing, and validation points
+p <- ggplot() + 
+  geom_polygon(data = map_data, aes(x = long, y = lat, group = group), 
+               fill = "white", color = "black") +
+  geom_point(data = train_pts_plot, aes(x = longitude, y = latitude), 
+             color = "#005293", alpha = 0.5, size = 1) +
+  geom_point(data = test_pts_plot, aes(x = longitude, y = latitude), 
+             color = "#e37222", alpha = 0.5, size = 1) +
+  geom_point(data = val_pts_plot, aes(x = longitude, y = latitude), 
+             color = "#98c6ea", alpha = 0.5, size = 1) +
+  coord_quickmap()
+
+# Call the plot
+ggplotly(p)
+
+
+# Export data
+#write.csv(train_pts, file = "c:/users/thomas/desktop/Leafy Spurge RS Demography/CSV_Datasets/spurge-train-blocks.csv", row.names=FALSE)
+#write.csv(test_pts, file = "c:/users/thomas/desktop/Leafy Spurge RS Demography/CSV_Datasets/spurge-test-blocks.csv", row.names=FALSE)
+#write.csv(val_pts, file = "c:/users/thomas/desktop/Leafy Spurge RS Demography/CSV_Datasets/spurge-val-blocks.csv", row.names=FALSE)
+
+
+
+```
+
+
+
+
+
+
+
+

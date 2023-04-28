@@ -1,0 +1,105 @@
+# Routines for Landsat Spurge Predictions on MSI, GCloud, and Google Earth Engine
+
+
+# Copy Landsat Imagery from GCloud to MSI
+
+module load rclone
+
+rclone --verbose --cache-workers 64 --transfers 64 --retries 32 copy remote:spurge-demography-geotiffs /home/moeller/shared/leafy-spurge-demography-landsat_tifs_2019
+
+
+#TIF files per timestep
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-2016 | wc
+    236     472   13148
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-2014 | wc
+    258     516   14380
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-2010 | wc
+    258     516   14380
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-2007 | wc
+    258     516   14380
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-2001 | wc
+    258     516   14380
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-1998 | wc
+    257     514   14325
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-1995 | wc
+    258     516   14379
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-1992 | wc
+    258     516   14380
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-1989 | wc
+    255     510   14212
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs-1986 | wc
+    235     470   13093
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/landsat_tifs_2019] % rclone ls remote:spurge-demography-geotiffs | wc    
+	259     518   14435
+
+
+
+# Using leafy-spurge-demography/pythonFiles/predictRasters-latlon-encoding-softmax-mean-std-uncertainty.py prediction file
+# Using leafy-spurge-demography/slurmScripts/PredictRasters_AllClasses_Mean_StDev_Softmax_Slurm.txt slurm submission script
+
+# Modify python prediction script to change inputs (Landsat tiles/year) and trained model .h5 files
+
+#Data Input
+# Input prediction .tif path
+image_path = r'/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/landsat_tifs_2016/'
+
+# Output prediction file path
+outpath = r'/panfs/jay/groups/31/moeller/shared/leafy-spurge-demography/model_predictions/predictions_2016/top_model/'
+
+
+
+
+#Model 1 and 2 Inputs and Outputs:
+
+#Model 1 Input
+/home/moeller/shared/leafy-spurge-demography/temporalCNN/Archi3/TemporalCNN_300epochs_latlongenc_dropout_uncertainty_topmodel_apr122023.h5
+# Model 1 Output
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/model_predictions/predictions_2016/top_model/]
+
+
+#Model 2 Input
+/home/moeller/shared/leafy-spurge-demography/temporalCNN/Archi6/TemporalCNN_300epochs_latlongenc_dropout_uncertainty_thin001_block-noarchi6_apr272023.h5
+# Model 2 Output
+(base) lakex055@cn0474 [/home/moeller/shared/leafy-spurge-demography/model_predictions/predictions_2016/thin_model/]
+
+
+
+#Submit slurm script
+sbatch --array=0-258 PredictRasters_AllClasses_Mean_StDev_Softmax_Slurm.txt
+
+
+
+# Wait about 6 hours for model predictions to submit and finish running
+# To Mosaic Predictions: 
+module load gdal/3.5.0
+
+gdal_merge.py --config CHECK_DISK_FREE_SPACE FALSE -o prediction_2019_mosaic_apr25.tif -ot UInt16 mean_*.tif
+
+
+
+# To Upload Mosaic to GCloud
+conda activate ee #environment with functional earthengine cli libraries, for uploading .tif > 10Gb (mosaics)
+
+module load rclone
+
+rclone copy /home/moeller/shared/leafy-spurge-demography/model_predictions/predictions_2019/mean_prediction_2019_mosaic_TemporalCNN_100epochs_latlongenc_dropout_uncertainty_topmodel_apr122023.tif remote:model_prediction_mosaics
+
+
+# Import Mosaic from GCloud to GEE (Takes ~18h)
+
+conda activate ee #environment with functional earthengine cli libraries, for uploading .tif > 10Gb (mosaics)
+
+earthengine upload image --asset_id=projects/ee-lakex055/assets/mosaic_asset_name gs://model_prediction_mosaics/mean_prediction_2019_mosaic_TemporalCNN_100epochs_latlongenc_dropout_uncertainty_topmodel_apr122023.tif
+
+
+
+
+
+
+
+
+
+
+
+
+
