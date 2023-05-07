@@ -1,0 +1,16 @@
+#Bash Shell Script to Upload .Tif Files from Google Cloud Bucket to Google Earth Engine using the EE CLI Tool
+
+for file in mean_mosaic_*_thinmodel_spurge.tif; do
+  # Define the asset name without the extension
+  asset_name="projects/ee-lakex055/assets/${file%.*}"
+  # Extract the year from the filename
+  year=$(echo $file | grep -o -E '[0-9]{4}')
+  # Set the start time for the image
+  start_time="${year}-01-01T00:00:00"
+  # Set the end time for the image
+  end_time="${year}-12-31T23:59:59"
+  # Upload the image to GEE with the date property
+  earthengine upload image --asset_id="$asset_name" --time_start="$start_time" --time_end="$end_time" "gs://model_prediction_mosaics/${file}";
+  echo "Uploaded ${file} to $asset_name with date property ${start_time}/${end_time}"
+done
+
